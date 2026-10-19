@@ -199,6 +199,28 @@ fastify.get('/health', async () => {
   return { status: 'ok', wasmInitialized };
 });
 
+// Add this route next to your /series/... handler
+fastify.get('/proxy', async (req, reply) => {
+  const { url, referer } = req.query;
+  const upstream = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) Chrome/143.0.0.0 Mobile Safari/537.36',
+      'Referer': referer || 'https://vidlink.pro/',
+      ...(req.headers.range ? { Range: req.headers.range } : {}),
+    },
+  });
+  reply.code(upstream.status);
+  reply.header('Content-Type', upstream.headers.get('content-type') || 'video/mp4');
+  reply.header('Accept-Ranges', 'bytes');
+  reply.header('Access-Control-Allow-Origin', '*');
+  for (const h of ['content-range', 'content-length']) {
+    const v = upstream.headers.get(h);
+    if (v) reply.header(h, v);
+  }
+  return reply.send(upstream.body); // fastify streams web bodies natively
+});
+
+
 // Start server
 const PORT = process.env.PORT || 3000;
 fastify.listen({ port: PORT, host: '0.0.0.0' }).then(async () => {
